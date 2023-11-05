@@ -1,13 +1,11 @@
 from flask import Flask, request, jsonify
-import os
 import sys
 import torch
-import base64
 import logging
-import queue
-import threading
-from server_utils import generate_job, ColoredFormatter
-
+from server_utils import generate_paintings, ColoredFormatter, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
+import gc
+from preproc import segment_images
+import subprocess
 
 logging.basicConfig(
     level=logging.INFO,  # Set the logging level to INFO or the desired level.
@@ -31,57 +29,35 @@ def generate_images():
     data = request.get_json()
     job_id = data.get('job_id')
     prompt = data.get('prompt')
-    job_dir = os.path.join("/home/paperspace/github/garouste_server/temp_dir", job_id)
+    images_dict = data.get('images')
+    proj_path = "/home/paperspace/github/garouste_server/temp_dir"
+    config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
+    dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
+    train_script_path = "/home/paperspace/github/sd-scripts/sdxl_train_network.py"
+
+    job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories_for_job(
+        job_id=job_id,
+        proj_path=proj_path
+    )
+    job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
+    save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
     
-    if not os.path.exists(job_dir):
-        os.mkdir(job_dir)
+    segment_images(basedir=face_image_dir, newdir=dataset_dir)
     
-    output_image_dir = os.path.join(job_dir, "images")
-    if not os.path.exists(output_image_dir):
-        os.mkdir(output_image_dir)
+    train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
     
-    face_lora_path = os.path.join(job_dir, "lora", "woman-epoch-000005.safetensors")
-
-    if torch.cuda.is_available():
-        # Get the number of available GPUs
-        num_gpus = torch.cuda.device_count()
-        logger.info(f"Number of available GPUs: {num_gpus}")
-
-        # Get information about each GPU
-        for i in range(num_gpus):
-            gpu = torch.cuda.get_device_properties(i)
-            available_memory = torch.cuda.memory_allocated(i)
-            print(f"Available GPU memory: {available_memory} bytes")
-            logger.info(f"GPU {i}: {gpu.name}, Available GPU memory: {available_memory / 1024**3} GB")
-    else:
-        logger.info("No GPU available. Using CPU.")
-
-    generate_job(job_id, prompt, face_lora_path, output_image_dir)
+    generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
+    painting_byte_images = encode_images_from_directory(output_image_dir=output_image_dir)
     
-    base64_encoded_images = []
-
-    # # Replace this loop with actual image generation
-    for filename in os.listdir(output_image_dir):
-        if filename.endswith('.png'):
-            image_path = os.path.join(output_image_dir, filename)
-
-            # Open and read the image
-            with open(image_path, 'rb') as image_file:
-                image_data = image_file.read()
-
-            # Base64 encode the image
-            encoded_image = base64.b64encode(image_data).decode('utf-8')
-
-            # Append the base64 encoded image to the list
-            base64_encoded_images.append(encoded_image)
-
-    # Return the images as a JSON response
-    response_data = {'job_id': 'your_job_id', 'images': base64_encoded_images}
-    
+    response_data = {'job_id': 'your_job_id', 'images': painting_byte_images}
     torch.cuda.empty_cache()
+    gc.collect()
     
     return jsonify(response_data)
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# if __name__ == "__main__":
+#     app.run(debug=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

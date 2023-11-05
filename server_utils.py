@@ -6,10 +6,14 @@ import torch
 from PIL import Image
 import numpy as np
 import logging
+import base64
+from io import BytesIO
+import toml
+import subprocess
 
 sys.path.append('/home/paperspace/github/ComfyUI')
 
-from nodes import (
+from custom_nodes import (
     SaveImage,
     KSampler,
     VAEDecode,
@@ -35,7 +39,67 @@ class ColoredFormatter(logging.Formatter):
         level_color = self.colors.get(record.levelno, '')
         message = super().format(record)
         return f'{level_color}{message}\033[0m'
-    
+
+
+def create_directories_for_job(job_id, proj_path):
+    job_dir = os.path.join(proj_path, job_id)
+    output_image_dir = os.path.join(job_dir, "out_images")
+    face_image_dir = os.path.join(job_dir, "face_images")
+    dataset_dir = os.path.join(job_dir, "dataset")
+    face_lora_dir = os.path.join(job_dir, "lora")
+    face_lora_path = os.path.join(face_lora_dir, "last.safetensors")
+
+    # Create job directory if it doesn't exist
+    if not os.path.exists(job_dir):
+        os.mkdir(job_dir)
+
+    # Create output_image_dir if it doesn't exist
+    if not os.path.exists(output_image_dir):
+        os.mkdir(output_image_dir)
+
+    # Create face_image_dir if it doesn't exist
+    if not os.path.exists(face_image_dir):
+        os.mkdir(face_image_dir)
+
+    # Create dataset_dir if it doesn't exist
+    if not os.path.exists(dataset_dir):
+        os.mkdir(dataset_dir)
+
+    # Create face_lora_dir if it doesn't exist
+    if not os.path.exists(face_lora_dir):
+        os.mkdir(face_lora_dir)
+
+    return job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path
+
+
+def encode_images_from_directory(output_image_dir):
+    base64_encoded_images = []
+
+    for filename in os.listdir(output_image_dir):
+        if filename.endswith('.png'):
+            image_path = os.path.join(output_image_dir, filename)
+
+            # Open and read the image
+            with open(image_path, 'rb') as image_file:
+                image_data = image_file.read()
+
+            # Base64 encode the image
+            encoded_image = base64.b64encode(image_data).decode('utf-8')
+
+            # Append the base64 encoded image to the list
+            base64_encoded_images.append(encoded_image)
+
+    return base64_encoded_images
+
+
+def save_images_from_request(images_dict, face_image_dir):
+    for i, entry in enumerate(images_dict):
+        name = entry["name"]
+        image_bytes = entry["data"]
+        decoded_image = base64.b64decode(image_bytes.encode('utf-8'))
+        image = Image.open(BytesIO(decoded_image))
+        image.save(os.path.join(face_image_dir, name))
+
 
 def get_value_at_index(obj: Union[Sequence, Mapping], index: int) -> Any:
     """Returns the value at the given index of a sequence or mapping.
@@ -61,7 +125,7 @@ def get_value_at_index(obj: Union[Sequence, Mapping], index: int) -> Any:
         return obj["result"][index]
 
 
-def save_images(image_tensor_list, output_folder):
+def save_tensors_as_images(image_tensor_list, output_folder):
     for n, image in enumerate(image_tensor_list):
         i = 255. * image.cpu().numpy()
         img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
@@ -70,7 +134,7 @@ def save_images(image_tensor_list, output_folder):
     return
 
 
-def generate_job(job_id, prompt, face_lora_path, output_images_dir):
+def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=12):
     with torch.inference_mode():
         checkpointloadersimple = CheckpointLoaderSimple()
         checkpointloadersimple_4 = checkpointloadersimple.load_checkpoint(
@@ -115,7 +179,7 @@ def generate_job(job_id, prompt, face_lora_path, output_images_dir):
 
         emptylatentimage = EmptyLatentImage()
         emptylatentimage_22 = emptylatentimage.generate(
-            width=1024, height=1536, batch_size=4
+            width=1024, height=1536, batch_size=batch_size
         )
 
         ksampler = KSampler()
@@ -141,7 +205,32 @@ def generate_job(job_id, prompt, face_lora_path, output_images_dir):
                 vae=get_value_at_index(checkpointloadersimple_4, 2),
             )
 
-            # saveimage_9 = saveimage.save_images(
-            #     filename_prefix="ComfyUI", images=get_value_at_index(vaedecode_8, 0)
-            # )
-            save_images(get_value_at_index(vaedecode_8, 0), output_images_dir)
+            save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir)
+
+def prepare_config_tomls(config_toml_path, dataset_toml_path, job_dir, face_lora_dir, dataset_dir):
+        # Load the TOML file
+    with open(config_toml_path, 'r') as f:
+        config_dict = toml.load(f)
+    with open(dataset_toml_path, 'r') as f:
+        dataset_dict = toml.load(f)
+    config_dict['model']['output_dir'] = face_lora_dir
+    dataset_dict['datasets'][0]['subsets'][0]['image_dir'] = dataset_dir
+    job_config_toml_path = os.path.join(job_dir, f"config.toml")
+    job_dataset_toml_path = os.path.join(job_dir, f"dataset.toml")
+    with open(job_config_toml_path, 'w') as f:
+        toml.dump(config_dict, f)
+    with open(job_dataset_toml_path, 'w') as f:
+        toml.dump(dataset_dict, f)
+    
+    return job_config_toml_path, job_dataset_toml_path
+
+def train_model(train_script_path, dataset_config, config_file):
+    subprocess.call(['accelerate', 
+                     'launch', 
+                     '--num_cpu_threads_per_process', 
+                     '4', 
+                     train_script_path,
+                     '--dataset_config',
+                     dataset_config,
+                     '--config_file',
+                     config_file])
