@@ -14,7 +14,10 @@ app = Flask(__name__)
 # Define the queue to store incoming image processing requests
 request_queue = queue.Queue()
 
-# Create a GPU manager to track GPU availability
+# Store job status and result
+job_statuses = {}
+job_results = {}
+
 class GPUManager:
     def __init__(self, num_gpus):
         self.available_gpus = list(range(num_gpus))
@@ -35,13 +38,6 @@ class GPUManager:
             self.gpus_in_use.remove(gpu)
             self.available_gpus.append(gpu)
 
-# Create the GPU manager with 1 GPU (you can adjust the number)
-gpu_manager = GPUManager(1)
-
-# Store job status and result
-job_statuses = {}
-job_results = {}
-
 # Implement a route to check job status
 @app.route('/check_job_status', methods=['GET'])
 def check_job_status():
@@ -60,9 +56,8 @@ def check_job_status():
     return jsonify(response_data)
 
 # Define a function to process image requests
-def process_image_request(gpu_index):
+def process_image_request(n_gpu):
     # Continuously check the queue for new image requests
-    print(gpu_index)
     while True:
         if not request_queue.empty():
             request_data = request_queue.get()
@@ -92,30 +87,30 @@ def process_image_request(gpu_index):
             finally:
                 request_queue.task_done()
 
-# Start worker threads to process image requests
-num_worker_threads = 2  # You can adjust the number of worker threads
-worker_threads = []
-for _ in range(num_worker_threads):
-    thread = threading.Thread(target=process_image_request, args=(gpu_manager.assign_gpu(),))
-    thread.start()
-    worker_threads.append(thread)
-
 # Implement a route to submit image processing requests
 @app.route('/process_image', methods=['POST'])
 def process_image():
-    try:
-        data = request.get_json()
-        image_data = base64.b64decode(data.get('image'))
-        request_id = data.get('request_id')  # Get the request ID from the client
+    data = request.get_json()
 
-        # Add the request data to the queue
-        request_queue.put({'request_id': request_id, 'image': image_data})
+    image_data = base64.b64decode(data.get('image'))
+    request_id = data.get('request_id')  # Get the request ID from the client
 
-        return jsonify({'message': 'Image processing request submitted successfully'})
-    except Exception as e:
-        # Log any errors that occur
-        print(f"Error processing image: {str(e)}")
-        return jsonify({'message': 'Image processing request failed'})
+    # Add the request data to the queue
+    request_queue.put({'request_id': request_id, 'image': image_data})
+    job_statuses[request_id] = "waiting"
+    
+    return jsonify({'message': 'Image processing request submitted successfully'})
+
+
+
+num_worker_threads = 2  # You can adjust the number of worker threads
+GPU_MANAGER = GPUManager(num_worker_threads)
+worker_threads = []
+
+for _ in range(num_worker_threads):
+    thread = threading.Thread(target=process_image_request, args=(GPU_MANAGER.assign_gpu(),))
+    thread.start()
+    worker_threads.append(thread)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
