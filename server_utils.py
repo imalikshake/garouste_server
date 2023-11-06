@@ -40,6 +40,25 @@ class ColoredFormatter(logging.Formatter):
         message = super().format(record)
         return f'{level_color}{message}\033[0m'
 
+class GPUManager:
+    def __init__(self, num_gpus):
+        self.available_gpus = list(range(num_gpus))
+        self.gpus_in_use = []
+        self.lock = threading.Lock()
+
+    def assign_gpu(self):
+        with self.lock:
+            if self.available_gpus:
+                gpu = self.available_gpus.pop(0)
+                self.gpus_in_use.append(gpu)
+                return gpu
+            else:
+                return None
+
+    def release_gpu(self, gpu):
+        with self.lock:
+            self.gpus_in_use.remove(gpu)
+            self.available_gpus.append(gpu)
 
 def create_directories_for_job(job_id, proj_path):
     job_dir = os.path.join(proj_path, job_id)
