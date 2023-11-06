@@ -24,6 +24,7 @@ logger.info('This is a message that will be printed to stdout')
 
 app = Flask(__name__)
 
+
 @app.route('/generate_images', methods=['POST'])
 def generate_images():
     data = request.get_json()
