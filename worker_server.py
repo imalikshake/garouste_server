@@ -21,7 +21,7 @@ request_queue = queue.Queue()
 job_statuses = {}
 job_results = {}
 
-def generate_images(job_id, gpu_id, prompt, images_dict):
+def generate_images(job_id, prompt, images_dict):
 
     proj_path = "/home/paperspace/github/garouste_server/temp_dir"
     config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
@@ -37,9 +37,9 @@ def generate_images(job_id, gpu_id, prompt, images_dict):
     
     segment_images(basedir=face_image_dir, newdir=dataset_dir)
     
-    train_model_gpu(train_script_path=train_script_path, gpu_id=gpu_id,dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
+    train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
     
-    generate_paintings_gpu(job_id=job_id, gpu_id=gpu_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
+    generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
 
     return output_image_dir
 
@@ -77,12 +77,9 @@ def process_image_request(gpu_id):
 
             # Store the request status as "processing"
             job_statuses[job_id] = 'processing'
-            print(job_id)
-            # print(images_dict)
-
             # Handle image processing
             try:
-                generated_response_dir = generate_images(job_id, gpu_id, prompt, images_dict)  # Simulate processing time
+                generated_response_dir = generate_images(job_id, prompt, images_dict)  # Simulate processing time
 
                 # Store the result and update the job status to "completed"
                 job_results[job_id] = generated_response_dir
@@ -119,7 +116,8 @@ def parse_args():
 
 args = parse_args()
 
-num_worker_threads = args.gpus  # You can adjust the number of worker threads
+# num_worker_threads = args.gpus  # You can adjust the number of worker threads
+num_worker_threads = 1 # You can adjust the number of worker threads
 GPU_MANAGER = GPUManager(num_worker_threads)
 worker_threads = []
 
