@@ -10,6 +10,8 @@ import base64
 from io import BytesIO
 import toml
 import subprocess
+import threading
+import subprocess
 
 sys.path.append('/home/paperspace/github/ComfyUI')
 
@@ -152,6 +154,79 @@ def save_tensors_as_images(image_tensor_list, output_folder):
         img.save(os.path.join(output_folder, file), compress_level=4)
     return
 
+def generate_paintings_gpu(job_id, gpu_id, prompt, face_lora_path, output_image_dir, batch_size=12):
+    with torch.cuda.device(gpu_id):
+        with torch.inference_mode():
+            checkpointloadersimple = CheckpointLoaderSimple()
+            checkpointloadersimple_4 = checkpointloadersimple.load_checkpoint(
+                ckpt_name="sd_xl_base_1.0.safetensors"
+            )
+
+            loraloader = LoraLoader()
+            face_lora_model = loraloader.load_lora(
+                lora_name=face_lora_path,
+                strength_model=1.1,
+                strength_clip=1,
+                model=get_value_at_index(checkpointloadersimple_4, 0),
+                clip=get_value_at_index(checkpointloadersimple_4, 1),
+                use_path=True
+            )
+
+            composition_lora_model = loraloader.load_lora(
+                lora_name="portraits_bnha_i4500.safetensors",
+                strength_model=0.7000000000000001,
+                strength_clip=1,
+                model=get_value_at_index(face_lora_model, 0),
+                clip=get_value_at_index(face_lora_model, 1),
+            )
+
+            style_lora_model = loraloader.load_lora(
+                lora_name="garouste_raphael_style_2.0.safetensors",
+                strength_model=1.2,
+                strength_clip=0.5,
+                model=get_value_at_index(composition_lora_model, 0),
+                clip=get_value_at_index(composition_lora_model, 1),
+            )
+
+            cliptextencode = CLIPTextEncode()
+            clip_positive_encoding = cliptextencode.encode(
+                text=str(prompt),
+                clip=get_value_at_index(style_lora_model, 1),
+            )
+
+            clip_negative_encoding = cliptextencode.encode(
+                text="blurry, watercolor", clip=get_value_at_index(style_lora_model, 1)
+            )
+
+            emptylatentimage = EmptyLatentImage()
+            emptylatentimage_22 = emptylatentimage.generate(
+                width=1024, height=1536, batch_size=batch_size
+            )
+
+            ksampler = KSampler()
+            vaedecode = VAEDecode()
+            saveimage = SaveImage()
+
+            for q in range(1):
+                ksampler_3 = ksampler.sample(
+                    seed=random.randint(1, 2**64),
+                    steps=20,
+                    cfg=8,
+                    sampler_name="euler",
+                    scheduler="normal",
+                    denoise=1,
+                    model=get_value_at_index(style_lora_model, 0),
+                    positive=get_value_at_index(clip_positive_encoding, 0),
+                    negative=get_value_at_index(clip_negative_encoding, 0),
+                    latent_image=get_value_at_index(emptylatentimage_22, 0),
+                )
+
+                vaedecode_8 = vaedecode.decode(
+                    samples=get_value_at_index(ksampler_3, 0),
+                    vae=get_value_at_index(checkpointloadersimple_4, 2),
+                )
+
+                save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir)
 
 def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=12):
     with torch.inference_mode():
@@ -253,3 +328,16 @@ def train_model(train_script_path, dataset_config, config_file):
                      dataset_config,
                      '--config_file',
                      config_file])
+
+def train_model_gpu(gpu_id, train_script_path, dataset_config, config_file):
+    curr_env = os.environ.copy()
+    curr_env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    subprocess.call(['accelerate', 
+                     'launch', 
+                     '--num_cpu_threads_per_process', 
+                     '4', 
+                     train_script_path,
+                     '--dataset_config',
+                     dataset_config,
+                     '--config_file',
+                     config_file], env=curr_env)
