@@ -12,6 +12,8 @@ import toml
 import subprocess
 import threading
 import subprocess
+import gc
+
 
 sys.path.append('/home/paperspace/github/ComfyUI')
 
@@ -146,17 +148,37 @@ def get_value_at_index(obj: Union[Sequence, Mapping], index: int) -> Any:
         return obj["result"][index]
 
 
-def save_tensors_as_images(image_tensor_list, output_folder):
+def save_tensors_as_images(image_tensor_list, output_folder, file_prefix):
     for n, image in enumerate(image_tensor_list):
         i = 255. * image.cpu().numpy()
         img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-        file = f"{n}.png"
+        file = f"{file_prefix}_{n}.png"
         img.save(os.path.join(output_folder, file), compress_level=4)
     return
 
-def generate_paintings_gpu(job_id, gpu_id, prompt, face_lora_path, output_image_dir, batch_size=12):
-    with torch.cuda.device(gpu_id):
-        with torch.inference_mode():
+    
+def get_face_lora_partitions(n=4, start=1.1, end=1.5):
+    step = (end - start) / (n - 1) if n > 1 else 0
+    return [start + i * step for i in range(n)]
+
+
+def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big"):
+    style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
+    style_weight = style_dict.get(style)
+
+    size_dict = {"small":{"width":832,"height":1152},
+                 "big":{"width":1024,"height":1532}}
+    width, height = size_dict.get("big")["width"], size_dict.get("big")["height"]
+
+    face_lora_weights = get_face_lora_partitions(n=3, start=1.1, end=1.4)
+    
+    print("face_lora_weights: ", face_lora_weights)
+    print("style_weight: ", style_weight)
+    print("width: ", width)
+    print("height: ", height)
+    
+    with torch.inference_mode():
+        for face_weight in face_lora_weights:
             checkpointloadersimple = CheckpointLoaderSimple()
             checkpointloadersimple_4 = checkpointloadersimple.load_checkpoint(
                 ckpt_name="sd_xl_base_1.0.safetensors"
@@ -165,7 +187,7 @@ def generate_paintings_gpu(job_id, gpu_id, prompt, face_lora_path, output_image_
             loraloader = LoraLoader()
             face_lora_model = loraloader.load_lora(
                 lora_name=face_lora_path,
-                strength_model=1.1,
+                strength_model=face_weight,
                 strength_clip=1,
                 model=get_value_at_index(checkpointloadersimple_4, 0),
                 clip=get_value_at_index(checkpointloadersimple_4, 1),
@@ -174,7 +196,7 @@ def generate_paintings_gpu(job_id, gpu_id, prompt, face_lora_path, output_image_
 
             composition_lora_model = loraloader.load_lora(
                 lora_name="portraits_bnha_i4500.safetensors",
-                strength_model=0.7000000000000001,
+                strength_model=style_weight,
                 strength_clip=1,
                 model=get_value_at_index(face_lora_model, 0),
                 clip=get_value_at_index(face_lora_model, 1),
@@ -182,8 +204,8 @@ def generate_paintings_gpu(job_id, gpu_id, prompt, face_lora_path, output_image_
 
             style_lora_model = loraloader.load_lora(
                 lora_name="garouste_raphael_style_2.0.safetensors",
-                strength_model=1.2,
-                strength_clip=0.5,
+                strength_model=1,
+                strength_clip=1,
                 model=get_value_at_index(composition_lora_model, 0),
                 clip=get_value_at_index(composition_lora_model, 1),
             )
@@ -195,98 +217,24 @@ def generate_paintings_gpu(job_id, gpu_id, prompt, face_lora_path, output_image_
             )
 
             clip_negative_encoding = cliptextencode.encode(
-                text="blurry, watercolor", clip=get_value_at_index(style_lora_model, 1)
+                text="(blurry:1.5),  watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
             )
 
             emptylatentimage = EmptyLatentImage()
             emptylatentimage_22 = emptylatentimage.generate(
-                width=1024, height=1536, batch_size=batch_size
+                width=width, height=height, batch_size=batch_size
             )
 
             ksampler = KSampler()
             vaedecode = VAEDecode()
-            saveimage = SaveImage()
 
-            for q in range(1):
-                ksampler_3 = ksampler.sample(
-                    seed=random.randint(1, 2**64),
-                    steps=20,
-                    cfg=8,
-                    sampler_name="euler",
-                    scheduler="normal",
-                    denoise=1,
-                    model=get_value_at_index(style_lora_model, 0),
-                    positive=get_value_at_index(clip_positive_encoding, 0),
-                    negative=get_value_at_index(clip_negative_encoding, 0),
-                    latent_image=get_value_at_index(emptylatentimage_22, 0),
-                )
 
-                vaedecode_8 = vaedecode.decode(
-                    samples=get_value_at_index(ksampler_3, 0),
-                    vae=get_value_at_index(checkpointloadersimple_4, 2),
-                )
-
-                save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir)
-
-def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=12):
-    with torch.inference_mode():
-        checkpointloadersimple = CheckpointLoaderSimple()
-        checkpointloadersimple_4 = checkpointloadersimple.load_checkpoint(
-            ckpt_name="sd_xl_base_1.0.safetensors"
-        )
-
-        loraloader = LoraLoader()
-        face_lora_model = loraloader.load_lora(
-            lora_name=face_lora_path,
-            strength_model=1.1,
-            strength_clip=1,
-            model=get_value_at_index(checkpointloadersimple_4, 0),
-            clip=get_value_at_index(checkpointloadersimple_4, 1),
-            use_path=True
-        )
-
-        composition_lora_model = loraloader.load_lora(
-            lora_name="portraits_bnha_i4500.safetensors",
-            strength_model=0.7000000000000001,
-            strength_clip=1,
-            model=get_value_at_index(face_lora_model, 0),
-            clip=get_value_at_index(face_lora_model, 1),
-        )
-
-        style_lora_model = loraloader.load_lora(
-            lora_name="garouste_raphael_style_2.0.safetensors",
-            strength_model=1.2,
-            strength_clip=0.5,
-            model=get_value_at_index(composition_lora_model, 0),
-            clip=get_value_at_index(composition_lora_model, 1),
-        )
-
-        cliptextencode = CLIPTextEncode()
-        clip_positive_encoding = cliptextencode.encode(
-            text=str(prompt),
-            clip=get_value_at_index(style_lora_model, 1),
-        )
-
-        clip_negative_encoding = cliptextencode.encode(
-            text="blurry, watercolor", clip=get_value_at_index(style_lora_model, 1)
-        )
-
-        emptylatentimage = EmptyLatentImage()
-        emptylatentimage_22 = emptylatentimage.generate(
-            width=1024, height=1536, batch_size=batch_size
-        )
-
-        ksampler = KSampler()
-        vaedecode = VAEDecode()
-        saveimage = SaveImage()
-
-        for q in range(1):
             ksampler_3 = ksampler.sample(
                 seed=random.randint(1, 2**64),
-                steps=20,
-                cfg=8,
-                sampler_name="euler",
-                scheduler="normal",
+                steps=25,
+                cfg=7,
+                sampler_name="dpmpp_2m",
+                scheduler="karras",
                 denoise=1,
                 model=get_value_at_index(style_lora_model, 0),
                 positive=get_value_at_index(clip_positive_encoding, 0),
@@ -299,7 +247,10 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
                 vae=get_value_at_index(checkpointloadersimple_4, 2),
             )
 
-            save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir)
+            save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir, file_prefix=str(face_weight))
+            
+            torch.cuda.empty_cache()
+            gc.collect()
 
 def prepare_config_tomls(config_toml_path, dataset_toml_path, job_dir, face_lora_dir, dataset_dir):
         # Load the TOML file

@@ -35,7 +35,7 @@ def generate_images(job_id, gpu_id, prompt, images_dict):
     job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
     save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
     
-    segment_images(basedir=face_image_dir, newdir=dataset_dir, SIZES=3)
+    segment_images(basedir=face_image_dir, newdir=dataset_dir, SIZES=4)
     
     # train_model_gpu(train_script_path=train_script_path, gpu_id=gpu_id,dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
     train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
@@ -111,6 +111,7 @@ def submit_job():
     job_statuses[job_id] = "waiting"
     
     return jsonify({'message': 'Image processing request submitted successfully'})
+
 
 
 # Define a function to parse command-line arguments

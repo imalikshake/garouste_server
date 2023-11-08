@@ -8,6 +8,10 @@ import base64
 from io import BytesIO
 from PIL import Image
 import uuid
+from server_utils import GPUManager, generate_paintings, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
+from preproc import segment_images
+import argparse
+import os 
 
 app = Flask(__name__)
 
@@ -18,92 +22,127 @@ request_queue = queue.Queue()
 job_statuses = {}
 job_results = {}
 
-class GPUManager:
-    def __init__(self, num_gpus):
-        self.available_gpus = list(range(num_gpus))
-        self.gpus_in_use = []
-        self.lock = threading.Lock()
+def generate_images(job_id, prompt, images_dict):
 
-    def assign_gpu(self):
-        with self.lock:
-            if self.available_gpus:
-                gpu = self.available_gpus.pop(0)
-                self.gpus_in_use.append(gpu)
-                return gpu
-            else:
-                return None
+    proj_path = "/home/paperspace/github/garouste_server/temp_dir"
+    config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
+    dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
+    train_script_path = "/home/paperspace/github/sd-scripts/sdxl_train_network.py"
 
-    def release_gpu(self, gpu):
-        with self.lock:
-            self.gpus_in_use.remove(gpu)
-            self.available_gpus.append(gpu)
+    job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories_for_job(
+        job_id=job_id,
+        proj_path=proj_path
+    )
+    job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
+    save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
+    
+    segment_images(basedir=face_image_dir, newdir=dataset_dir, SIZES=4)
+    
+    # train_model_gpu(train_script_path=train_script_path, gpu_id=gpu_id,dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
+    train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
+    
+    generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
+    # generate_paintings_gpu(job_id=job_id, gpu_id=gpu_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
+
+    return output_image_dir
+
+def get_generated_results(job_id):
+    generated_response_dir = job_results.get(job_id)
+    painting_byte_images = encode_images_from_directory(output_image_dir=generated_response_dir)
+    return painting_byte_images
 
 # Implement a route to check job status
 @app.route('/check_job_status', methods=['GET'])
 def check_job_status():
-    request_id = request.args.get('request_id')
-
-    if request_id in job_statuses:
-        status = job_statuses[request_id]
+    job_id = request.args.get('job_id')
+    if job_id in job_statuses:
+        status = job_statuses[job_id]
         if status == 'completed':
-            processed_image = job_results.get(request_id)
-            response_data = {'status': status, 'processed_image': processed_image, 'request_id': request_id}
+            painting_byte_images = get_generated_results(job_id)
+            response_data = {'status': status, 'job_id': job_id, 'images': painting_byte_images}
         else:
-            response_data = {'status': status, 'request_id': request_id}
+            response_data = {'status': status, 'job_id': job_id}
     else:
-        response_data = {'status': 'not_found', 'request_id': request_id}
+        response_data = {'status': 'not_found', 'job_id': job_id}
 
     return jsonify(response_data)
 
 # Define a function to process image requests
-def process_image_request(n_gpu):
+def process_image_request(gpu_id):
     # Continuously check the queue for new image requests
     while True:
         if not request_queue.empty():
             request_data = request_queue.get()
 
-            request_id = request_data.get('request_id')  # Get the request ID from the client
+            job_id = request_data.get('job_id')  # Get the request ID from the client
+            #REMOVE AFTter
+            # images_dict = request_data.get('images_dict')
+            prompt = request_data.get('prompt')
 
-            image_data = request_data.get('image')
 
             # Store the request status as "processing"
-            job_statuses[request_id] = 'processing'
+            job_statuses[job_id] = 'processing'
+            # print(images_dict)
 
             # Handle image processing
             try:
-                image = image_data
-                time.sleep(10)  # Simulate processing time
-
-                # Convert the processed image to base64-encoded format
-                processed_image_data = base64.b64encode(image).decode('utf-8')
+                # generated_response_dir = generate_images(job_id, prompt, images_dict)  # Simulate processing time
+                generated_response_dir = generate_batches(job_id, prompt)  # Simulate processing time
 
                 # Store the result and update the job status to "completed"
-                job_results[request_id] = processed_image_data
-                job_statuses[request_id] = 'completed'
+                job_results[job_id] = generated_response_dir
+                job_statuses[job_id] = 'completed'
             except Exception as e:
                 # If there's an error, store the status as "failed" and log the error
-                job_statuses[request_id] = 'failed'
-                print(f"Error processing image request with ID: {request_id}: {str(e)}")
+                job_statuses[job_id] = 'failed'
+                print(f"Error processing image request with ID: {job_id}: {str(e)}")
             finally:
                 request_queue.task_done()
+                torch.cuda.empty_cache()
+                gc.collect()
 
 # Implement a route to submit image processing requests
-@app.route('/process_image', methods=['POST'])
-def process_image():
+@app.route('/submit_job', methods=['POST'])
+def submit_job():
     data = request.get_json()
+    job_id = data.get('job_id')
+    prompt = data.get('prompt')
+    images_dict = data.get('images')
 
-    image_data = base64.b64decode(data.get('image'))
-    request_id = data.get('request_id')  # Get the request ID from the client
+    request_queue.put({'job_id': job_id, 'prompt': prompt, 'images_dict': images_dict})
 
-    # Add the request data to the queue
-    request_queue.put({'request_id': request_id, 'image': image_data})
-    job_statuses[request_id] = "waiting"
+    job_statuses[job_id] = "waiting"
     
     return jsonify({'message': 'Image processing request submitted successfully'})
 
+def generate_batches(job_id, prompt, output_image_dir="/home/paperspace/garouste_server/tests/"):
+
+    proj_path = "/home/paperspace/github/garouste_server/temp_dir"
+    config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
+    dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
+    train_script_path = "/home/paperspace/github/sd-scripts/sdxl_train_network.py"
+    out_dir = output_image_dir
+    job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories_for_job(
+        job_id=job_id,
+        proj_path=proj_path
+    )
+    output_image_dir = os.path.join(out_dir, str(int(time.time() * 1000) % 100000000))
+    os.mkdir(output_image_dir)
+    generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
+
+    return output_image_dir
 
 
-num_worker_threads = 2  # You can adjust the number of worker threads
+# Define a function to parse command-line arguments
+def parse_args():
+    parser = argparse.ArgumentParser(description="Flask Server with Arguments")
+    parser.add_argument('--gpus', default=1, type=int, help="Number of GPUs")
+    return parser.parse_args()
+
+args = parse_args()
+
+# num_worker_threads = args.gpus  # You can adjust the number of worker threads
+num_worker_threads = 1 # You can adjust the number of worker threads
 GPU_MANAGER = GPUManager(num_worker_threads)
 worker_threads = []
 
