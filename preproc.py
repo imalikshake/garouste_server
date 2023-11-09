@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import cv2
 import torch
@@ -19,7 +21,7 @@ def write_caption(img_path, caption):
     with open(caption_file, 'w') as f:
         f.write(caption)
 
-def segment_images(basedir, newdir, COLORS_PER_IMAGE=2, SIZES=4):
+def segment_images(basedir, newdir, colors=2, sizes=4):
     COLOR_LIST = list(COLOR_DICT.keys())
     color_counter = 0
 
@@ -119,10 +121,10 @@ def segment_images(basedir, newdir, COLORS_PER_IMAGE=2, SIZES=4):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", help="input directory", required=True)
-    parser.add_argument("--output", help="output directory", default="output")
-    parser.add_argument("--sizes", help="number of sizes to resize to", default=4)
-    parser.add_argument("--colors", help="number of colors to use per image", default=2)
+    parser.add_argument("--input", type=str, help="input directory", required=True)
+    parser.add_argument("--output", type=str, help="output directory", default="output")
+    parser.add_argument("--sizes", type=int, help="number of sizes to resize to", default=4)
+    parser.add_argument("--colors", type=int, help="number of colors to use per image", default=2)
     args = parser.parse_args()
 
     basedir = args.input
@@ -130,5 +132,6 @@ if __name__ == '__main__':
     COLORS_PER_IMAGE = args.colors
     SIZES = args.sizes
 
-    segment_images(basedir=basedir, newdir=newdir, colors_per_image=COLORS_PER_IMAGE, sizes=SIZES)
-
+    segment_images(basedir=basedir, newdir=newdir, colors=COLORS_PER_IMAGE, sizes=SIZES)
+    torch.cuda.empty_cache()
+    gc.collect()

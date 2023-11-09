@@ -8,8 +8,7 @@ import base64
 from io import BytesIO
 from PIL import Image
 import uuid
-from server_utils import GPUManager, generate_paintings, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
-from preproc import segment_images
+from server_utils import segment_images, generate, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
 import argparse
 import os 
 
@@ -22,7 +21,7 @@ request_queue = queue.Queue()
 job_statuses = {}
 job_results = {}
 
-def generate_images(job_id, gpu_id, prompt, images_dict):
+def generate_images(job_id, prompt, images_dict):
     proj_path = "/home/paperspace/github/garouste_server/temp_dir"
     config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
     dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
@@ -37,17 +36,14 @@ def generate_images(job_id, gpu_id, prompt, images_dict):
         file.write(f"String 1: {job_id}\n")
         file.write(f"String 2: {prompt}\n")
 
+        
     job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
+    
     save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
-    
-    segment_images(basedir=face_image_dir, newdir=dataset_dir, SIZES=4)
-    
-    # train_model_gpu(train_script_path=train_script_path, gpu_id=gpu_id,dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
+    segment_images(basedir=face_image_dir, newdir=dataset_dir, sizes=4)
     train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
+    generate(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
     
-    generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
-    # generate_paintings_gpu(job_id=job_id, gpu_id=gpu_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
-
     return output_image_dir
 
 def get_generated_results(job_id):
@@ -72,7 +68,7 @@ def check_job_status():
     return jsonify(response_data)
 
 # Define a function to process image requests
-def process_image_request(gpu_id):
+def process_image_request():
     # Continuously check the queue for new image requests
     while True:
         if not request_queue.empty():
@@ -89,7 +85,7 @@ def process_image_request(gpu_id):
 
             # Handle image processing
             try:
-                generated_response_dir = generate_images(job_id, gpu_id, prompt, images_dict)  # Simulate processing time
+                generated_response_dir = generate_images(job_id, prompt, images_dict)  # Simulate processing time
 
                 # Store the result and update the job status to "completed"
                 job_results[job_id] = generated_response_dir
@@ -130,11 +126,10 @@ args = parse_args()
 
 # num_worker_threads = args.gpus  # You can adjust the number of worker threads
 num_worker_threads = 1 # You can adjust the number of worker threads
-GPU_MANAGER = GPUManager(num_worker_threads)
 worker_threads = []
 
 for _ in range(num_worker_threads):
-    thread = threading.Thread(target=process_image_request, args=(GPU_MANAGER.assign_gpu(),))
+    thread = threading.Thread(target=process_image_request)
     thread.start()
     worker_threads.append(thread)
 

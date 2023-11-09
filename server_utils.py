@@ -44,25 +44,16 @@ class ColoredFormatter(logging.Formatter):
         message = super().format(record)
         return f'{level_color}{message}\033[0m'
 
-class GPUManager:
-    def __init__(self, num_gpus):
-        self.available_gpus = list(range(num_gpus))
-        self.gpus_in_use = []
-        self.lock = threading.Lock()
 
-    def assign_gpu(self):
-        with self.lock:
-            if self.available_gpus:
-                gpu = self.available_gpus.pop(0)
-                self.gpus_in_use.append(gpu)
-                return gpu
-            else:
-                return None
-
-    def release_gpu(self, gpu):
-        with self.lock:
-            self.gpus_in_use.remove(gpu)
-            self.available_gpus.append(gpu)
+def segment_images(basedir, newdir, sizes=4, colors=2, dir="/home/paperspace/github/garouste_server/"):
+     subprocess.call([f"{dir}preproc.py",
+                      '--input',
+                      basedir,
+                      '--output',
+                      newdir,
+                      '--sizes',
+                      str(sizes)
+                      ])   
 
 def create_directories_for_job(job_id, proj_path):
     job_dir = os.path.join(proj_path, job_id)
@@ -163,99 +154,123 @@ def get_face_lora_partitions(n=4, start=1.1, end=1.5):
     return [start + i * step for i in range(n)]
 
 
-def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big"):
-    style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
-    style_weight = style_dict.get(style)
+# def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big"):
+#     style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
+#     style_weight = style_dict.get(style)
 
-    size_dict = {"small":{"width":832,"height":1152},
-                 "big":{"width":1024,"height":1532},
-                 "xbig":{"width":1532,"height":2024},
-                 "small2":{"width":900,"height":1256},
-                 "big2":{"width":1256,"height":1752},
-                 }
-    width, height = size_dict.get(size)["width"], size_dict.get(size)["height"]
+#     size_dict = {"small":{"width":832,"height":1152},
+#                  "big":{"width":1024,"height":1532},
+#                  "xbig":{"width":1532,"height":2024},
+#                  "small2":{"width":900,"height":1256},
+#                  "big2":{"width":1256,"height":1752},
+#                  }
+#     width, height = size_dict.get(size)["width"], size_dict.get(size)["height"]
 
-    face_lora_weights = get_face_lora_partitions(n=3, start=1.1, end=1.4)
+#     face_lora_weights = get_face_lora_partitions(n=3, start=1.1, end=1.4)
     
-    print("face_lora_weights: ", face_lora_weights)
-    print("style_weight: ", style_weight)
-    print("width: ", width)
-    print("height: ", height)
+#     print("face_lora_weights: ", face_lora_weights)
+#     print("style_weight: ", style_weight)
+#     print("width: ", width)
+#     print("height: ", height)
     
-    with torch.inference_mode():
-        for face_weight in face_lora_weights:
-            checkpointloadersimple = CheckpointLoaderSimple()
-            checkpointloadersimple_4 = checkpointloadersimple.load_checkpoint(
-                ckpt_name="sd_xl_base_1.0.safetensors"
-            )
+#     with torch.inference_mode():
+#         for face_weight in face_lora_weights:
+#             checkpointloadersimple = CheckpointLoaderSimple()
+#             checkpointloadersimple_4 = checkpointloadersimple.load_checkpoint(
+#                 ckpt_name="sd_xl_base_1.0.safetensors"
+#             )
 
-            loraloader = LoraLoader()
-            face_lora_model = loraloader.load_lora(
-                lora_name=face_lora_path,
-                strength_model=face_weight,
-                strength_clip=1,
-                model=get_value_at_index(checkpointloadersimple_4, 0),
-                clip=get_value_at_index(checkpointloadersimple_4, 1),
-                use_path=True
-            )
+#             loraloader = LoraLoader()
+#             face_lora_model = loraloader.load_lora(
+#                 lora_name=face_lora_path,
+#                 strength_model=face_weight,
+#                 strength_clip=1,
+#                 model=get_value_at_index(checkpointloadersimple_4, 0),
+#                 clip=get_value_at_index(checkpointloadersimple_4, 1),
+#                 use_path=True
+#             )
 
-            composition_lora_model = loraloader.load_lora(
-                lora_name="portraits_bnha_i4500.safetensors",
-                strength_model=style_weight,
-                strength_clip=1,
-                model=get_value_at_index(face_lora_model, 0),
-                clip=get_value_at_index(face_lora_model, 1),
-            )
+#             composition_lora_model = loraloader.load_lora(
+#                 lora_name="portraits_bnha_i4500.safetensors",
+#                 strength_model=style_weight,
+#                 strength_clip=1,
+#                 model=get_value_at_index(face_lora_model, 0),
+#                 clip=get_value_at_index(face_lora_model, 1),
+#             )
 
-            style_lora_model = loraloader.load_lora(
-                lora_name="garouste_raphael_style_2.0.safetensors",
-                strength_model=1,
-                strength_clip=1,
-                model=get_value_at_index(composition_lora_model, 0),
-                clip=get_value_at_index(composition_lora_model, 1),
-            )
+#             style_lora_model = loraloader.load_lora(
+#                 lora_name="garouste_raphael_style_2.0.safetensors",
+#                 strength_model=1,
+#                 strength_clip=1,
+#                 model=get_value_at_index(composition_lora_model, 0),
+#                 clip=get_value_at_index(composition_lora_model, 1),
+#             )
 
-            cliptextencode = CLIPTextEncode()
-            clip_positive_encoding = cliptextencode.encode(
-                text=str(prompt),
-                clip=get_value_at_index(style_lora_model, 1),
-            )
+#             cliptextencode = CLIPTextEncode()
+#             clip_positive_encoding = cliptextencode.encode(
+#                 text=str(prompt),
+#                 clip=get_value_at_index(style_lora_model, 1),
+#             )
 
-            clip_negative_encoding = cliptextencode.encode(
-                text="(blurry:1.5),  watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
-            )
+#             clip_negative_encoding = cliptextencode.encode(
+#                 text="(blurry:1.5),  watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
+#             )
 
-            emptylatentimage = EmptyLatentImage()
-            emptylatentimage_22 = emptylatentimage.generate(
-                width=width, height=height, batch_size=batch_size
-            )
+#             emptylatentimage = EmptyLatentImage()
+#             emptylatentimage_22 = emptylatentimage.generate(
+#                 width=width, height=height, batch_size=batch_size
+#             )
 
-            ksampler = KSampler()
-            vaedecode = VAEDecode()
+#             ksampler = KSampler()
+#             vaedecode = VAEDecode()
 
 
-            ksampler_3 = ksampler.sample(
-                seed=random.randint(1, 2**64),
-                steps=25,
-                cfg=7,
-                sampler_name="dpmpp_2m",
-                scheduler="karras",
-                denoise=1,
-                model=get_value_at_index(style_lora_model, 0),
-                positive=get_value_at_index(clip_positive_encoding, 0),
-                negative=get_value_at_index(clip_negative_encoding, 0),
-                latent_image=get_value_at_index(emptylatentimage_22, 0),
-            )
+#             ksampler_3 = ksampler.sample(
+#                 seed=random.randint(1, 2**64),
+#                 steps=25,
+#                 cfg=7,
+#                 sampler_name="dpmpp_2m",
+#                 scheduler="karras",
+#                 denoise=1,
+#                 model=get_value_at_index(style_lora_model, 0),
+#                 positive=get_value_at_index(clip_positive_encoding, 0),
+#                 negative=get_value_at_index(clip_negative_encoding, 0),
+#                 latent_image=get_value_at_index(emptylatentimage_22, 0),
+#             )
 
-            vaedecode_8 = vaedecode.decode(
-                samples=get_value_at_index(ksampler_3, 0),
-                vae=get_value_at_index(checkpointloadersimple_4, 2),
-            )
+#             vaedecode_8 = vaedecode.decode(
+#                 samples=get_value_at_index(ksampler_3, 0),
+#                 vae=get_value_at_index(checkpointloadersimple_4, 2),
+#             )
 
-            save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir, file_prefix=str(face_weight))
-            
-            torch.cuda.empty_cache()
-            gc.collect()
+#             save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir, file_prefix=str(face_weight))
+#             del face_lora_model
+#             del composition_lora_model
+#             del style_lora_model
+#             del clip_positive_encoding
+#             del vaedecode_8
+#             torch.cuda.empty_cache()
+#             gc.collect() 
+#     torch.cuda.empty_cache()
+#     gc.collect()            
+    
+def generate(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big", dir="/home/paperspace/github/garouste_server/"):
+     subprocess.call([f"{dir}generate_paintings.py",
+                      '--job_id',
+                      job_id,
+                      '--prompt',
+                      prompt,
+                      '--face_lora_path',
+                      face_lora_path,
+                      '--output_image_dir',
+                      output_image_dir,
+                      '--batch_size',
+                      str(batch_size),
+                      '--style',
+                      str(style),
+                      '--size',
+                      str(size)])   
+
 
 def prepare_config_tomls(config_toml_path, dataset_toml_path, job_dir, face_lora_dir, dataset_dir):
         # Load the TOML file
@@ -286,8 +301,6 @@ def train_model(train_script_path, dataset_config, config_file):
                      config_file])
 
 def train_model_gpu(gpu_id, train_script_path, dataset_config, config_file):
-    curr_env = os.environ.copy()
-    curr_env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     subprocess.call(['accelerate', 
                      'launch', 
                      '--num_cpu_threads_per_process', 
@@ -296,4 +309,5 @@ def train_model_gpu(gpu_id, train_script_path, dataset_config, config_file):
                      '--dataset_config',
                      dataset_config,
                      '--config_file',
-                     config_file], env=curr_env)
+                     config_file])
+
