@@ -11,6 +11,7 @@ import uuid
 from server_utils import GPUManager, generate_paintings, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
 from preproc import segment_images
 import argparse
+import os 
 
 app = Flask(__name__)
 
@@ -22,7 +23,6 @@ job_statuses = {}
 job_results = {}
 
 def generate_images(job_id, gpu_id, prompt, images_dict):
-
     proj_path = "/home/paperspace/github/garouste_server/temp_dir"
     config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
     dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
@@ -32,6 +32,11 @@ def generate_images(job_id, gpu_id, prompt, images_dict):
         job_id=job_id,
         proj_path=proj_path
     )
+    
+    with open(os.path.join(proj_path, "metadata.txt"), 'w') as file:
+        file.write(f"String 1: {job_id}\n")
+        file.write(f"String 2: {prompt}\n")
+
     job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
     save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
     
@@ -105,7 +110,8 @@ def submit_job():
     job_id = data.get('job_id')
     prompt = data.get('prompt')
     images_dict = data.get('images')
-
+    print("PROMPT: ", prompt)
+    print("JOB: ", job_id)
     request_queue.put({'job_id': job_id, 'prompt': prompt, 'images_dict': images_dict})
 
     job_statuses[job_id] = "waiting"

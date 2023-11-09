@@ -13,7 +13,7 @@ import subprocess
 import threading
 import subprocess
 import gc
-
+import time
 
 sys.path.append('/home/paperspace/github/ComfyUI')
 
@@ -121,6 +121,7 @@ def save_images_from_request(images_dict, face_image_dir):
         image_bytes = entry["data"]
         decoded_image = base64.b64decode(image_bytes.encode('utf-8'))
         image = Image.open(BytesIO(decoded_image))
+        image = image.convert('RGB')
         image.save(os.path.join(face_image_dir, name))
 
 
@@ -153,7 +154,7 @@ def save_tensors_as_images(image_tensor_list, output_folder, file_prefix):
         i = 255. * image.cpu().numpy()
         img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
         file = f"{file_prefix}_{n}.png"
-        img.save(os.path.join(output_folder, file), compress_level=4)
+        img.save(os.path.join(output_folder, str(int(time.time() * 1000) % 100000000)+"_"+file), compress_level=4)
     return
 
     
@@ -167,8 +168,12 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
     style_weight = style_dict.get(style)
 
     size_dict = {"small":{"width":832,"height":1152},
-                 "big":{"width":1024,"height":1532}}
-    width, height = size_dict.get("big")["width"], size_dict.get("big")["height"]
+                 "big":{"width":1024,"height":1532},
+                 "xbig":{"width":1532,"height":2024},
+                 "small2":{"width":900,"height":1256},
+                 "big2":{"width":1256,"height":1752},
+                 }
+    width, height = size_dict.get(size)["width"], size_dict.get(size)["height"]
 
     face_lora_weights = get_face_lora_partitions(n=3, start=1.1, end=1.4)
     

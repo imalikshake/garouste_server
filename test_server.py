@@ -126,8 +126,9 @@ def generate_batches(job_id, prompt, output_image_dir="/home/paperspace/garouste
         job_id=job_id,
         proj_path=proj_path
     )
-    output_image_dir = os.path.join(out_dir, str(int(time.time() * 1000) % 100000000))
+    output_image_dir = os.path.join(output_image_dir, str(int(time.time() * 1000) % 100000000))
     os.mkdir(output_image_dir)
+    print(output_image_dir)
     generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
 
     return output_image_dir
@@ -152,4 +153,4 @@ for _ in range(num_worker_threads):
     worker_threads.append(thread)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
