@@ -7,6 +7,7 @@ from transformers import SamModel, SamProcessor
 from colors import COLOR_DICT
 import os
 import argparse
+import gc
 
 def create_caption(color):
     color = color.lower()

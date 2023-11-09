@@ -20,7 +20,7 @@ from custom_nodes import (
     LoraLoader,
 )
 
-def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big"):
+def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big"):
     style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
     style_weight = style_dict.get(style)
 
@@ -32,7 +32,7 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
                  }
     width, height = size_dict.get(size)["width"], size_dict.get(size)["height"]
 
-    face_lora_weights = get_face_lora_partitions(n=3, start=1.1, end=1.4)
+    face_lora_weights = get_face_lora_partitions(n=4, start=1.1, end=1.55)
     
     print("face_lora_weights: ", face_lora_weights)
     print("style_weight: ", style_weight)
@@ -79,7 +79,7 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
             )
 
             clip_negative_encoding = cliptextencode.encode(
-                text="(blurry:1.5),  watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
+                text="watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
             )
 
             emptylatentimage = EmptyLatentImage()
@@ -112,6 +112,7 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
             save_tensors_as_images(get_value_at_index(vaedecode_8, 0), output_image_dir, file_prefix=str(face_weight))
             torch.cuda.empty_cache()
             gc.collect()   
+            
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Your method description here.")

@@ -8,7 +8,7 @@ import base64
 from io import BytesIO
 from PIL import Image
 import uuid
-from server_utils import GPUManager, generate_paintings, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
+from server_utils import generate, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
 from preproc import segment_images
 import argparse
 import os 
@@ -34,9 +34,9 @@ def generate_images(job_id, prompt, images_dict):
         proj_path=proj_path
     )
     job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
-    save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
+    # save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
     
-    segment_images(basedir=face_image_dir, newdir=dataset_dir, SIZES=4)
+    # segment_images(basedir=face_image_dir, newdir=dataset_dir, SIZES=4)
     
     # train_model_gpu(train_script_path=train_script_path, gpu_id=gpu_id,dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
     train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
@@ -68,7 +68,7 @@ def check_job_status():
     return jsonify(response_data)
 
 # Define a function to process image requests
-def process_image_request(gpu_id):
+def process_image_request():
     # Continuously check the queue for new image requests
     while True:
         if not request_queue.empty():
@@ -129,26 +129,17 @@ def generate_batches(job_id, prompt, output_image_dir="/home/paperspace/garouste
     output_image_dir = os.path.join(output_image_dir, str(int(time.time() * 1000) % 100000000))
     os.mkdir(output_image_dir)
     print(output_image_dir)
-    generate_paintings(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
+    generate(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
 
     return output_image_dir
 
 
-# Define a function to parse command-line arguments
-def parse_args():
-    parser = argparse.ArgumentParser(description="Flask Server with Arguments")
-    parser.add_argument('--gpus', default=1, type=int, help="Number of GPUs")
-    return parser.parse_args()
-
-args = parse_args()
-
 # num_worker_threads = args.gpus  # You can adjust the number of worker threads
 num_worker_threads = 1 # You can adjust the number of worker threads
-GPU_MANAGER = GPUManager(num_worker_threads)
 worker_threads = []
 
 for _ in range(num_worker_threads):
-    thread = threading.Thread(target=process_image_request, args=(GPU_MANAGER.assign_gpu(),))
+    thread = threading.Thread(target=process_image_request)
     thread.start()
     worker_threads.append(thread)
 
