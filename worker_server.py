@@ -32,7 +32,7 @@ def generate_images(job_id, prompt, images_dict):
         proj_path=proj_path
     )
     
-    with open(os.path.join(proj_path, "metadata.txt"), 'w') as file:
+    with open(os.path.join(job_dir, "metadata.txt"), 'w') as file:
         file.write(f"String 1: {job_id}\n")
         file.write(f"String 2: {prompt}\n")
 

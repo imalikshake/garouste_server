@@ -79,7 +79,7 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
             )
 
             clip_negative_encoding = cliptextencode.encode(
-                text="watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
+                text="(blurry:1.5), watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
             )
 
             emptylatentimage = EmptyLatentImage()
