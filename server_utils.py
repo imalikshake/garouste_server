@@ -15,7 +15,7 @@ import subprocess
 import gc
 import time
 
-sys.path.append('/home/paperspace/github/ComfyUI')
+sys.path.append('/root/home/github/ComfyUI')
 
 from custom_nodes import (
     SaveImage,
@@ -45,7 +45,7 @@ class ColoredFormatter(logging.Formatter):
         return f'{level_color}{message}\033[0m'
 
 
-def segment_images(basedir, newdir, sizes=4, colors=2, dir="/home/paperspace/github/garouste_server/"):
+def segment_images(basedir, newdir, sizes=4, colors=2, dir="/root/home/github/garouste_server/"):
      subprocess.call([f"{dir}preproc.py",
                       '--input',
                       basedir,
@@ -254,7 +254,7 @@ def get_face_lora_partitions(n=4, start=1.1, end=1.5):
 #     torch.cuda.empty_cache()
 #     gc.collect()            
     
-def generate(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big", dir="/home/paperspace/github/garouste_server/"):
+def generate(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big", dir="/root/home/github/garouste_server/"):
      subprocess.call([f"{dir}generate_paintings.py",
                       '--job_id',
                       job_id,

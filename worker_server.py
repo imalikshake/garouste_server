@@ -22,28 +22,27 @@ job_statuses = {}
 job_results = {}
 
 def generate_images(job_id, prompt, images_dict):
-    proj_path = "/home/paperspace/github/garouste_server/temp_dir"
-    config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
-    dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
-    train_script_path = "/home/paperspace/github/sd-scripts/sdxl_train_network.py"
+    proj_path = "/root/home/github/garouste_server/temp_dir"
+    config_toml_path = "/root/home/github/garouste_server/general_config.toml"
+    dataset_toml_path = "/root/home/github/garouste_server/general_dataset.toml"
+    train_script_path = "/root/home/github/sd-scripts/sdxl_train_network.py"
 
     job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories_for_job(
         job_id=job_id,
         proj_path=proj_path
     )
     
-    with open(os.path.join(proj_path, "metadata.txt"), 'w') as file:
+    with open(os.path.join(job_dir, "metadata.txt"), 'w') as file:
         file.write(f"String 1: {job_id}\n")
         file.write(f"String 2: {prompt}\n")
 
         
     job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
-    
+    print(face_lora_path)
     save_images_from_request(images_dict=images_dict, face_image_dir=face_image_dir)
     segment_images(basedir=face_image_dir, newdir=dataset_dir, sizes=4)
     train_model(train_script_path=train_script_path, dataset_config=job_dataset_toml_path, config_file=job_config_toml_path)
     generate(job_id=job_id, prompt=prompt, face_lora_path=face_lora_path, output_image_dir=output_image_dir)
-    
     return output_image_dir
 
 def get_generated_results(job_id):

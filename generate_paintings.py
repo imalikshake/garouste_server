@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import torch
 import gc
@@ -7,7 +8,7 @@ from server_utils import save_tensors_as_images, get_face_lora_partitions, get_v
 import random
 import argparse
 
-sys.path.append('/home/paperspace/github/ComfyUI')
+sys.path.append('/root/home/github/ComfyUI')
 
 from custom_nodes import (
     SaveImage,
@@ -20,7 +21,8 @@ from custom_nodes import (
     LoraLoader,
 )
 
-def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big"):
+def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big", loras_dir="/root/home/github/garouste_server/loras"):
+
     style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
     style_weight = style_dict.get(style)
 
@@ -57,19 +59,21 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
             )
 
             composition_lora_model = loraloader.load_lora(
-                lora_name="portraits_bnha_i4500.safetensors",
+                lora_name=os.path.join(loras_dir,"portraits_bnha_i4500.safetensors"),
                 strength_model=style_weight,
                 strength_clip=1,
                 model=get_value_at_index(face_lora_model, 0),
                 clip=get_value_at_index(face_lora_model, 1),
+                use_path=True
             )
 
             style_lora_model = loraloader.load_lora(
-                lora_name="garouste_raphael_style_2.0.safetensors",
+                lora_name=os.path.join(loras_dir,"garouste_raphael_style_2.0.safetensors"),
                 strength_model=1,
                 strength_clip=1,
                 model=get_value_at_index(composition_lora_model, 0),
                 clip=get_value_at_index(composition_lora_model, 1),
+                use_path=True
             )
 
             cliptextencode = CLIPTextEncode()
@@ -79,7 +83,7 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
             )
 
             clip_negative_encoding = cliptextencode.encode(
-                text="watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
+                text="(blurry:1.5), watercolor, text, signature, ugly face", clip=get_value_at_index(style_lora_model, 1)
             )
 
             emptylatentimage = EmptyLatentImage()

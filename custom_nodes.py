@@ -568,6 +568,7 @@ class LoraLoader:
                 del temp
 
         if lora is None:
+            print("lora_path:", lora_path)
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
 

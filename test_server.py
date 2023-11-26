@@ -24,10 +24,10 @@ job_results = {}
 
 def generate_images(job_id, prompt, images_dict):
 
-    proj_path = "/home/paperspace/github/garouste_server/temp_dir"
-    config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
-    dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
-    train_script_path = "/home/paperspace/github/sd-scripts/sdxl_train_network.py"
+    proj_path = "/root/home/github/garouste_server/temp_dir"
+    config_toml_path = "/root/home/github/garouste_server/general_config.toml"
+    dataset_toml_path = "/root/home/github/garouste_server/general_dataset.toml"
+    train_script_path = "/root/home/github/sd-scripts/sdxl_train_network.py"
 
     job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories_for_job(
         job_id=job_id,
@@ -117,10 +117,10 @@ def submit_job():
 
 def generate_batches(job_id, prompt, output_image_dir="/home/paperspace/garouste_server/tests/"):
 
-    proj_path = "/home/paperspace/github/garouste_server/temp_dir"
-    config_toml_path = "/home/paperspace/github/garouste_server/general_config.toml"
-    dataset_toml_path = "/home/paperspace/github/garouste_server/general_dataset.toml"
-    train_script_path = "/home/paperspace/github/sd-scripts/sdxl_train_network.py"
+    proj_path = "/root/home/github/garouste_server/temp_dir"
+    config_toml_path = "/root/home/github/garouste_server/general_config.toml"
+    dataset_toml_path = "/root/home/github/garouste_server/general_dataset.toml"
+    train_script_path = "/root/home/github/sd-scripts/sdxl_train_network.py"
     out_dir = output_image_dir
     job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories_for_job(
         job_id=job_id,
