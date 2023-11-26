@@ -21,7 +21,7 @@ from custom_nodes import (
     LoraLoader,
 )
 
-def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big", loras_dir="/root/home/github/garouste_server/loras"):
+def generate_paintings(prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big", loras_dir="/root/home/github/garouste_server/loras"):
 
     style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
     style_weight = style_dict.get(style)
@@ -120,7 +120,6 @@ def generate_paintings(job_id, prompt, face_lora_path, output_image_dir, batch_s
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Your method description here.")
-    parser.add_argument('--job_id', type=str, required=True, help='Job ID for identification')
     parser.add_argument('--prompt', type=str, required=True, help='Prompt for the method')
     parser.add_argument('--face_lora_path', type=str, required=True, help='Path to face LORA data')
     parser.add_argument('--output_image_dir', type=str, required=True, help='Directory to save output images')
@@ -130,7 +129,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     print(args)
-    job_id = args.job_id
     prompt = args.prompt
     face_lora_path = args.face_lora_path
     output_image_dir = args.output_image_dir
@@ -138,8 +136,7 @@ if __name__ == "__main__":
     style = args.style
     size  = args.size
     
-    generate_paintings(job_id=args.job_id,
-    prompt=args.prompt,
+    generate_paintings(prompt=args.prompt,
     face_lora_path=args.face_lora_path,
     output_image_dir=args.output_image_dir,
     batch_size=args.batch_size,
