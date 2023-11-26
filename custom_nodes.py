@@ -1347,8 +1347,11 @@ class LoadImage:
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
-    def load_image(self, image):
-        image_path = folder_paths.get_annotated_filepath(image)
+    def load_image(self, image, use_path=False):
+        if use_path:
+            image_path = image
+        else:
+            image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         image = i.convert("RGB")

@@ -201,4 +201,26 @@ def train_model(train_script_path, dataset_config, config_file, gpu_id=0):
                      config_file], env=env)
 
 
+def import_custom_nodes() -> None:
+    """Find all custom nodes in the custom_nodes folder and add those node objects to NODE_CLASS_MAPPINGS
+
+    This function sets up a new asyncio event loop, initializes the PromptServer,
+    creates a PromptQueue, and initializes the custom nodes.
+    """
+    import asyncio
+    import execution
+    from nodes import init_custom_nodes
+    import server
+
+    # Creating a new event loop and setting it as the default loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Creating an instance of PromptServer with the loop
+    server_instance = server.PromptServer(loop)
+    execution.PromptQueue(server_instance)
+
+    # Initializing custom nodes
+    init_custom_nodes()
+
 
