@@ -1,4 +1,5 @@
 opencv-python
 opencv-contrib-python
 diffusers
-xformer
+xformers
+accelerate
