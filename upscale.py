@@ -28,7 +28,7 @@ from nodes import (
     NODE_CLASS_MAPPINGS
 )
 
-def upscale(filename, image_path, output_image_dir):
+def upscale(filename, image_path, output_image_dir, loras_dir="/root/home/github/garouste_server/loras"):
     import_custom_nodes()
     base_name = os.path.basename(image_path)
     filename, _ = os.path.splitext(base_name)
@@ -41,11 +41,12 @@ def upscale(filename, image_path, output_image_dir):
 
         loraloader = LoraLoader()
         loraloader_10 = loraloader.load_lora(
-            lora_name="garouste_raphael_style_2.0.safetensors",
+            lora_name=os.path.join(loras_dir,"garouste_raphael_style_2.0.safetensors"),
             strength_model=1,
             strength_clip=1,
             model=get_value_at_index(checkpointloadersimple_4, 0),
             clip=get_value_at_index(checkpointloadersimple_4, 1),
+            use_path=True            
         )
 
         cliptextencode = CLIPTextEncode()

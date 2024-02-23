@@ -41,7 +41,7 @@ class ColoredFormatter(logging.Formatter):
         return f'{level_color}{message}\033[0m'
 
 
-def segment_images(basedir, newdir, sizes=4, colors=2, dir="/root/home/github/garouste_server/", gpu_id=0):
+def segment_images(basedir, newdir, sizes=4, colors=2, dir="/root/home/github/garouste_server/", gpu_id=0, token="raff"):
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = gpu_id
     subprocess.call([f"{dir}preproc.py",
@@ -50,7 +50,9 @@ def segment_images(basedir, newdir, sizes=4, colors=2, dir="/root/home/github/ga
                       '--output',
                       newdir,
                       '--sizes',
-                      str(sizes)
+                      str(sizes),
+                      '--token',
+                      token
                       ], env=env)   
 
 def create_directories_for_job(job_id, proj_path):
@@ -187,7 +189,7 @@ def prepare_config_tomls(config_toml_path, dataset_toml_path, job_dir, face_lora
     
     return job_config_toml_path, job_dataset_toml_path
 
-def train_model(train_script_path, dataset_config, config_file, gpu_id=0):
+def train_model(train_script_path, dataset_config, config_file, name="", gpu_id=0):
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = gpu_id
     subprocess.call(['accelerate', 
@@ -198,7 +200,9 @@ def train_model(train_script_path, dataset_config, config_file, gpu_id=0):
                      '--dataset_config',
                      dataset_config,
                      '--config_file',
-                     config_file], env=env)
+                     config_file,
+                     "--output_name",
+                     name], env=env)
 
 
 def import_custom_nodes() -> None:

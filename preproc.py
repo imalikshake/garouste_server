@@ -9,20 +9,21 @@ import os
 import argparse
 import gc
 
-def create_caption(color):
+def create_caption(color, token):
     color = color.lower()
     if color[0] in "aeiou":
         an_color = "an " + color
     else:
         an_color = "a " + color
-    return f"A photo of raff person in front of {an_color} colored background."
+    return f"A photo of {token} person in front of {an_color} colored background."
 
 def write_caption(img_path, caption):
     caption_file = f"{os.path.splitext(img_path)[0]}.caption"
     with open(caption_file, 'w') as f:
         f.write(caption)
 
-def segment_images(basedir, newdir, colors=2, sizes=4):
+def segment_images(basedir, newdir, colors=2, sizes=4, token="raff"):
+    print(sizes)
     COLOR_LIST = list(COLOR_DICT.keys())
     color_counter = 0
 
@@ -109,7 +110,7 @@ def segment_images(basedir, newdir, colors=2, sizes=4):
                 # Combine the object image and the background
                 result = cv2.add(object_image, background)
                 result = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
-                color_caption = create_caption(color_name)
+                color_caption = create_caption(color_name, token)
                 color_str = "_".join(color_name.split())
                 img_path = f"{fname}-{size}-{color_str.lower()}.jpg"
 
@@ -126,13 +127,15 @@ if __name__ == '__main__':
     parser.add_argument("--output", type=str, help="output directory", default="output")
     parser.add_argument("--sizes", type=int, help="number of sizes to resize to", default=4)
     parser.add_argument("--colors", type=int, help="number of colors to use per image", default=2)
+    parser.add_argument("--token", type=str, help="lora token", default="raff")
     args = parser.parse_args()
 
     basedir = args.input
     newdir = args.output
     COLORS_PER_IMAGE = args.colors
     SIZES = args.sizes
+    token = args.token
 
-    segment_images(basedir=basedir, newdir=newdir, colors=COLORS_PER_IMAGE, sizes=SIZES)
+    segment_images(basedir=basedir, newdir=newdir, colors=COLORS_PER_IMAGE, sizes=SIZES, token=token)
     torch.cuda.empty_cache()
     gc.collect()
