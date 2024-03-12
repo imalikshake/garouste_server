@@ -8,4 +8,4 @@
 `server_utils.py` - helper methods for server io stuff. \
 `test_server.py` - test code. \
 `upscale.py` - upscale pipeline. \
-`worker_server -` flask code for running a server with state. \
+`worker_server -` flask code for running a server with state. 
