@@ -1,9 +1,7 @@
 from typing import Sequence, Mapping, Any, Union
 import os
-import sys
 from PIL import Image
 import numpy as np
-import logging
 import base64
 from io import BytesIO
 import toml
@@ -11,24 +9,26 @@ import subprocess
 import subprocess
 import time
 
-sys.path.append('/root/home/github/ComfyUI')
 
-from custom_nodes import (
-    SaveImage,
-    KSampler,
-    VAEDecode,
-    EmptyLatentImage,
-    NODE_CLASS_MAPPINGS,
-    CLIPTextEncode,
-    CheckpointLoaderSimple,
-    LoraLoader,
-)
+def train_model(train_script_path, dataset_config, config_file, gpu_id=0):
+    env = os.environ.copy()
+    env["CUDA_VISIBLE_DEVICES"] = gpu_id
+    subprocess.call(['accelerate', 
+                     'launch', 
+                     '--num_cpu_threads_per_process', 
+                     '4', 
+                     train_script_path,
+                     '--dataset_config',
+                     dataset_config,
+                     '--config_file',
+                     config_file], env=env)
+
 
 
 def segment_images(basedir, newdir, sizes=4, colors=2, dir="/root/home/github/garouste_server/", gpu_id=0):
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = gpu_id
-    subprocess.call([f"{dir}preproc.py",
+    subprocess.call([f"{dir}segment.py",
                       '--input',
                       basedir,
                       '--output',
@@ -134,24 +134,7 @@ def save_tensors_as_images(image_tensor_list, output_folder, file_prefix):
 def get_face_lora_partitions(n=4, start=1.1, end=1.5):
     step = (end - start) / (n - 1) if n > 1 else 0
     return [start + i * step for i in range(n)]
-        
-    
-def generate(prompt, face_lora_path, output_image_dir, batch_size=8, style=0, size="big", dir="/root/home/github/garouste_server/", gpu_id=0):
-    env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = gpu_id
-    subprocess.call([f"{dir}generate_paintings.py",
-                      '--prompt',
-                      prompt,
-                      '--face_lora_path',
-                      face_lora_path,
-                      '--output_image_dir',
-                      output_image_dir,
-                      '--batch_size',
-                      str(batch_size),
-                      '--style',
-                      str(style),
-                      '--size',
-                      str(size)], env=env)   
+         
 
 def combine_toml(dict1, dict2):
   """
@@ -177,6 +160,7 @@ def combine_toml(dict1, dict2):
 
   return combined_data
 
+
 def prepare_config_tomls(experience_toml_path, config_toml_path, dataset_toml_path, job_dir, face_lora_dir, dataset_dir):
     with open(experience_toml_path, 'r') as f:
         exp_dict = toml.load(f)
@@ -194,41 +178,3 @@ def prepare_config_tomls(experience_toml_path, config_toml_path, dataset_toml_pa
     with open(job_dataset_toml_path, 'w') as f:
         toml.dump(dataset_dict, f)
     return job_config_toml_path, job_dataset_toml_path
-
-def train_model(train_script_path, dataset_config, config_file, gpu_id=0):
-    env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = gpu_id
-    subprocess.call(['accelerate', 
-                     'launch', 
-                     '--num_cpu_threads_per_process', 
-                     '4', 
-                     train_script_path,
-                     '--dataset_config',
-                     dataset_config,
-                     '--config_file',
-                     config_file], env=env)
-
-
-def import_custom_nodes() -> None:
-    """Find all custom nodes in the custom_nodes folder and add those node objects to NODE_CLASS_MAPPINGS
-
-    This function sets up a new asyncio event loop, initializes the PromptServer,
-    creates a PromptQueue, and initializes the custom nodes.
-    """
-    import asyncio
-    import execution
-    from nodes import init_custom_nodes
-    import server
-
-    # Creating a new event loop and setting it as the default loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    # Creating an instance of PromptServer with the loop
-    server_instance = server.PromptServer(loop)
-    execution.PromptQueue(server_instance)
-
-    # Initializing custom nodes
-    init_custom_nodes()
-
-

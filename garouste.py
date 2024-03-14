@@ -11,7 +11,6 @@ import argparse
 sys.path.append('/root/home/github/ComfyUI')
 
 from custom_nodes import (
-    SaveImage,
     KSampler,
     VAEDecode,
     EmptyLatentImage,
@@ -21,7 +20,8 @@ from custom_nodes import (
     LoraLoader,
 )
 
-def generate_paintings(prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big", loras_dir="/root/home/github/garouste_server/loras"):
+def generate_paintings(prompt, face_lora_path, output_image_dir, batch_size=8, style=2, size="big", 
+                       loras_dir="/root/home/github/garouste_server/loras"):
 
     style_dict = {2: 0.4, 1: 0.3, 0: 0.15}
     style_weight = style_dict.get(style)
@@ -129,7 +129,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-
     face_lora_path = args.face_lora_path
     output_image_dir = args.output_image_dir
     batch_size = args.batch_size
@@ -137,7 +136,6 @@ if __name__ == "__main__":
     size  = args.size
     metadata_path  = args.metadata_path
     
-            # Reading metadata file to get the prompt variable
     with open(metadata_path, 'r') as file:
         for line in file:
             if line.startswith("prompt: "):

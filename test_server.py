@@ -9,7 +9,7 @@ from io import BytesIO
 from PIL import Image
 import uuid
 from server_utils import generate, encode_images_from_directory, save_images_from_request,create_directories_for_job, train_model, prepare_config_tomls
-from preproc import segment_images
+from garouste_server.segment import segment_images
 import argparse
 import os 
 
