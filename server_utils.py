@@ -24,22 +24,6 @@ from custom_nodes import (
     LoraLoader,
 )
 
-class ColoredFormatter(logging.Formatter):
-    def __init__(self, fmt):
-        super().__init__(fmt)
-        self.colors = {
-            logging.DEBUG: '\033[32m',
-            logging.INFO: '\033[34m',
-            logging.WARNING: '\033[33m',
-            logging.ERROR: '\033[31m',
-            logging.CRITICAL: '\033[35m',
-        }
-
-    def format(self, record):
-        level_color = self.colors.get(record.levelno, '')
-        message = super().format(record)
-        return f'{level_color}{message}\033[0m'
-
 
 def segment_images(basedir, newdir, sizes=4, colors=2, dir="/root/home/github/garouste_server/", gpu_id=0):
     env = os.environ.copy()
@@ -169,22 +153,46 @@ def generate(prompt, face_lora_path, output_image_dir, batch_size=8, style=0, si
                       '--size',
                       str(size)], env=env)   
 
+def combine_toml(dict1, dict2):
+  """
+  Combines two dictionaries and updates common values from the second dictionary.
 
-def prepare_config_tomls(config_toml_path, dataset_toml_path, job_dir, face_lora_dir, dataset_dir):
-        # Load the TOML file
+  Args:
+    dict1 (dict): The first dictionary.
+    dict2 (dict): The second dictionary.
+
+  Returns:
+    dict: The combined dictionary.
+  """
+  combined_data = {}
+  for section, section_data in dict1.items():
+    combined_data[section] = section_data.copy()
+    if section in dict2:
+      combined_data[section].update(dict2[section])
+
+  # Add remaining keys from dict2 not present in dict1
+  for section, section_data in dict2.items():
+    if section not in combined_data:
+      combined_data[section] = section_data.copy()
+
+  return combined_data
+
+def prepare_config_tomls(experience_toml_path, config_toml_path, dataset_toml_path, job_dir, face_lora_dir, dataset_dir):
+    with open(experience_toml_path, 'r') as f:
+        exp_dict = toml.load(f)
     with open(config_toml_path, 'r') as f:
         config_dict = toml.load(f)
     with open(dataset_toml_path, 'r') as f:
         dataset_dict = toml.load(f)
-    config_dict['model']['output_dir'] = face_lora_dir
     dataset_dict['datasets'][0]['subsets'][0]['image_dir'] = dataset_dir
+    merged_config_dict = combine_toml(config_dict, exp_dict)
+    merged_config_dict['model']['output_dir'] = face_lora_dir
     job_config_toml_path = os.path.join(job_dir, f"config.toml")
     job_dataset_toml_path = os.path.join(job_dir, f"dataset.toml")
     with open(job_config_toml_path, 'w') as f:
-        toml.dump(config_dict, f)
+        toml.dump(merged_config_dict, f)
     with open(job_dataset_toml_path, 'w') as f:
         toml.dump(dataset_dict, f)
-    
     return job_config_toml_path, job_dataset_toml_path
 
 def train_model(train_script_path, dataset_config, config_file, gpu_id=0):

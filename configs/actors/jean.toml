@@ -1,0 +1,14 @@
+[model]
+flip_aug = true
+color_aug = true
+name = "jean"
+
+[schedule]
+max_train_steps = 400
+
+[segment]
+sizes = 8
+token = "raff"
+
+[cache]
+cache_latents = false

@@ -1,0 +1,17 @@
+[model]
+flip_aug = false
+color_aug = false
+name = "user"
+
+[schedule]
+max_train_steps = 200
+
+[segment]
+sizes = 4
+token = "raff"
+
+[cache]
+cache_latents = true
+
+[workflow]
+name = "garouste"
