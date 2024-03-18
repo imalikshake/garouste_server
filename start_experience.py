@@ -2,7 +2,7 @@ from server_utils import prepare_config_tomls
 import argparse
 import os 
 from experience import GuiraudiExperience, GarousteExperience
-
+from mapping import experience_mapping
 
 def create_directories(job_dir):
     output_image_dir = os.path.join(job_dir, "out_images")
@@ -29,28 +29,30 @@ def parse_args():
  
 
 if __name__ == '__main__':
+    #Parsing
     args = parse_args()
     job_id = args.job_id
     job_dir = args.job_dir
     gpu_id = str(args.gpu_id)
     experience_id = str(args.experience_id)
+
+    # Static filenames. Need to clean this.
     config_toml_path = "/root/home/github/garouste_server/configs/general/general_config.toml"
     dataset_toml_path = "/root/home/github/garouste_server/configs/general/general_dataset.toml"
     experience_toml_path = f"/root/home/github/garouste_server/configs/experience/{experience_id}.toml"
     train_script_path = "/root/home/github/sd-scripts/sdxl_train_network.py"
     metadata_path = os.path.join(job_dir, "metadata.txt")
+    
+    # Create directories
     job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path = create_directories(
         job_dir=job_dir
     )   
     
+    #Update tomls
     job_config_toml_path, job_dataset_toml_path = prepare_config_tomls(experience_toml_path=experience_toml_path, config_toml_path=config_toml_path, dataset_toml_path=dataset_toml_path, job_dir=job_dir, face_lora_dir=face_lora_dir, dataset_dir=dataset_dir)
  
-    experience_mapping = {
-        "1": GarousteExperience,
-        "2": GarousteExperience,
-        "3": GuiraudiExperience
-    }
 
+    # Dynamically get experience from experience ID.
     experience = experience_mapping[experience_id](job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path, job_config_toml_path, job_dataset_toml_path, train_script_path, metadata_path)
 
     experience.train()
