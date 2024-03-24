@@ -58,10 +58,21 @@ class GarousteExperience(Experience):
                         str(size)], env=env)   
 
 
-class GuiraudiExperience(Experience):
+class GuiraudieExperience(Experience):
     def __init__(self, job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path, job_config_toml_path, job_dataset_toml_path, train_script_path, metadata_path):
         super().__init__(job_dir, output_image_dir, face_image_dir, dataset_dir, face_lora_dir, face_lora_path, job_config_toml_path, job_dataset_toml_path, train_script_path)
         self.metadata_path = metadata_path
 
     def generate(self, batch_size=8, style=0, size="big", dir="/root/home/github/garouste_server/", gpu_id="0"):
-        pass
+        env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = gpu_id
+        subprocess.call([f"{dir}guiraudie.py",
+                        '--metadata_path',
+                        self.metadata_path,
+                        '--face_lora_path',
+                        self.face_lora_path,
+                        '--output_image_dir',
+                        self.output_image_dir,
+                        '--batch_size',
+                        str(batch_size)], env=env)
+                           
